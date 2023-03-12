@@ -23,6 +23,26 @@ const openaiApi = new openai.OpenAIApi(
 
 const deeplApi = new deepl.Translator(Deno.env.get("DEEPL_API_KEY")!)
 
+async function handleCommand(prompt: string) {
+  const openaiResponse = await openaiApi
+    .createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    })
+    .catch((e) => {
+      console.error(e)
+      console.error(e.response.data)
+    })
+  if (openaiResponse) {
+    console.log(openaiResponse.data.choices[0].message?.content.trim())
+  }
+}
+
 async function handleSentence(prompt: string) {
   // Translate the prompt to Norwegian
   const translation: string = (
@@ -67,7 +87,9 @@ async function handleSentence(prompt: string) {
 
             > Note: \`I det siste\` = "lately" or "recently"
 
-            Now, your sentence in Norwegian to explain is: "${translation}"
+            The original sentence in English was: "${prompt}"
+            
+            My translation to Norwegian is: "${translation}"
           `,
         },
       ],
@@ -89,5 +111,10 @@ while (true) {
   const line = prompt(">")
   if (!line) continue
   console.log("")
-  await handleSentence(line)
+  if (line.startsWith("/")) {
+    await handleCommand(line)
+  } else {
+    await handleSentence(line)
+  }
+  console.log("")
 }
