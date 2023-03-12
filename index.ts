@@ -17,7 +17,7 @@ import "https://deno.land/std@0.179.0/dotenv/load.ts"
 marked.setOptions({
   renderer: new TerminalRenderer({
     reflowText: true,
-    width: 80,
+    width: 100,
   }),
 })
 
@@ -28,6 +28,26 @@ const openaiApi = new openai.OpenAIApi(
 )
 
 const deeplApi = new deepl.Translator(Deno.env.get("DEEPL_API_KEY")!)
+
+async function handleExplainWord(word: string) {
+  const openaiResponse = await openaiApi
+    .createChatCompletion({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: `I am learning Norwegian. Please concisely explain the meaning of the Norwegian word "${word}", like you're a dictionary.`,
+        },
+      ],
+    })
+    .catch((e) => {
+      console.error(e)
+      console.error(e.response.data)
+    })
+  if (openaiResponse) {
+    console.log(marked(openaiResponse.data.choices[0].message?.content.trim()))
+  }
+}
 
 async function handleCommand(prompt: string) {
   const openaiResponse = await openaiApi
@@ -50,12 +70,16 @@ async function handleCommand(prompt: string) {
 }
 
 async function handleSentence(prompt: string) {
-  // Translate the prompt to Norwegian
-  const translation: string = (
-    await deeplApi.translateText(prompt, "en", "nb")
-  ).text.trim()
-
-  console.log(marked(`**Translation: \`${translation}\`**`))
+  // Translate the prompt into Norwegian
+  const translationResult = await deeplApi.translateText(prompt, null, "nb")
+  let translation
+  if (translationResult.detectedSourceLang === "en") {
+    translation = translationResult.text.trim()
+    console.log(marked(`**Translation: \`${translation}\`**`))
+  } else {
+    console.debug("Assuming the sentence is in Norwegian")
+    translation = prompt
+  }
 
   // Say it out loud by using the 'say' command on macOS
   void (async () => {
@@ -83,7 +107,7 @@ async function handleSentence(prompt: string) {
             The rules are:
 
               - Use the format specified below.
-              - For simple words like "du", "en", "og", etc., you can just provide the word itself and its translations.
+              - For simple words like "du", "en", "er", "og", etc., you can just provide the word itself and its translations.
 
             For instance, if your sentence is "Hvor ble du født?", your explanation should be the following JSON object. Do not output any other text.
 
@@ -130,7 +154,11 @@ async function handleSentence(prompt: string) {
             
             Feel free to add other useful notes, since I'm a beginner in Norwegian.
 
-            The original sentence in English was: "${prompt}"
+            ${
+              translation !== prompt
+                ? `The original sentence was: "${prompt}"`
+                : ""
+            }
             
             My translation to Norwegian is: "${translation}"
           `,
@@ -175,7 +203,9 @@ while (true) {
   if (!line) continue
   console.log("")
   if (line.startsWith("/")) {
-    await handleCommand(line)
+    await handleCommand(line.slice(1))
+  } else if (line.startsWith("?")) {
+    await handleExplainWord(line.slice(1))
   } else {
     await handleSentence(line)
   }
