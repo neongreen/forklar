@@ -3,16 +3,19 @@ import * as openai from "npm:openai"
 import outdent from "https://deno.land/x/outdent@v0.8.0/mod.ts"
 import { marked } from "npm:marked"
 import TerminalRenderer from "npm:marked-terminal"
+import Table from "npm:cli-table3"
+import {
+  yellow,
+  bold,
+  italic,
+} from "https://deno.land/std@0.178.0/fmt/colors.ts"
 
 // Load env vars
 import "https://deno.land/std@0.179.0/dotenv/load.ts"
 
 // Set up marked
 marked.setOptions({
-  renderer: new TerminalRenderer({
-    reflowText: true,
-    width: Deno.consoleSize().columns - 10,
-  }),
+  renderer: new TerminalRenderer({}),
 })
 
 const openaiApi = new openai.OpenAIApi(
@@ -67,25 +70,41 @@ async function handleSentence(prompt: string) {
 
               - Use the format specified below.
               - For simple words like "du", "en", "og", etc., you can just provide the word itself and its translations.
-              - Do not provide any comments or notes on formatting.
-              - Always surround Norwegian words and sentences with \`backticks\`.
 
-            For instance, if your sentence is "Hvor ble du født?", your explanation should be the following list.
+            For instance, if your sentence is "Hvor ble du født?", your explanation should be the following JSON object. Do not output any other text.
 
-            1. \`Hvor\` (adv.) = "where", or "где" in Russian\\
-               _... \`Hvor er toalettet?\` = "Where is the bathroom?"_
+            {
+              "explanation": [
+                {"word": "Hvor", "english": "where", "russian": "где", "example": "Hvor er toalettet?", "translation": "Where is the bathroom?"},
+                {"word": "ble", "english": "became (past tense of 'bli')", "russian": "был", "example": "Hun ble syk i går", "translation": "She became sick yesterday"},
+                {"word": "du", "english": "you", "russian": "ты"},
+                {"word": "født", "english": "born", "russian": "родился", "example": "Jeg ble født i Oslo", "translation": "I was born in Oslo"}
+              ]
+            ]
 
-            2. \`ble\` (v.) = past tense form of the verb \`bli\`, which means "to become".\\
-               _... \`Hun ble syk i går\` = "She became sick yesterday"_
+            For very common compound words, you can provide a single row for a combination of words. For instance, if your sentence is "Jeg vil ha kjøtt i stedet for fisk.", your output should be as follows:
 
-            3. \`du\` (pron.) = "you", or "ты" in Russian.
+            {
+              "explanation": [
+                {"word": "Jeg", "english": "I", "russian": "я"},
+                {"word": "vil", "english": "will", "russian": "хочу"},
+                {"word": "ha", "english": "have", "russian": "иметь"},
+                {"word": "kjøtt", "english": "meat", "russian": "мясо", "example": "Jeg liker kjøtt", "translation": "I like meat"},
+                {"word": "i stedet for", "english": "instead of", "russian": "вместо", "example": "Jeg vil ha te i stedet for kaffe", "translation": "I want tea instead of coffee"},
+                {"word": "fisk", "english": "fish", "russian": "рыба", "example": "Jeg liker fisk", "translation": "I like fish"}
+              ]
+            }
 
-            4. \`født\` (adj.) = "born", or "родился" in Russian.\\
-               _... \`Jeg ble født i Oslo\` = "I was born in Oslo"_
+            If a combination of words has a special meaning, you can provide an example sentence for that combination as well. For instance, if your sentence is "I det siste har jeg vært mye på tur", you can add the following note to the JSON object:
 
-            If a combination of words has a special meaning, you can provide an example sentence for that combination as well. For instance, if your sentence is "I det siste har jeg vært mye på tur", you can add the following note to your explanation:
-
-            > Note: \`I det siste\` = "lately" or "recently"
+            { 
+              ...,
+              "notes": [
+                "'I det siste' = 'lately' or 'recently'"
+              ]
+            }
+            
+            Feel free to add other useful notes, since I'm a beginner in Norwegian.
 
             The original sentence in English was: "${prompt}"
             
@@ -100,9 +119,29 @@ async function handleSentence(prompt: string) {
     })
 
   if (openaiResponse) {
-    const explanation: string =
-      openaiResponse.data.choices[0].message?.content.trim()!
-    console.log(marked(explanation))
+    const result = JSON.parse(openaiResponse.data.choices[0].message?.content!)
+    const table = new Table({
+      head: ["Word", "Translation", "Example"],
+    })
+    for (const word of result.explanation) {
+      table.push([
+        bold(yellow(word.word)),
+        `${italic("English:")} ${word.english}` +
+          "\n" +
+          `${italic("Russian:")} ${word.russian}`,
+        ...(word.example
+          ? [yellow(word.example) + "\n" + italic(word.translation)]
+          : []),
+      ])
+    }
+    console.log(table.toString())
+
+    if (result.notes) {
+      console.log(marked(`**Notes:**`))
+      for (const note of result.notes) {
+        console.log(marked(`- ${note}`))
+      }
+    }
   }
 }
 
