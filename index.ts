@@ -15,7 +15,10 @@ import "https://deno.land/std@0.179.0/dotenv/load.ts"
 
 // Set up marked
 marked.setOptions({
-  renderer: new TerminalRenderer({}),
+  renderer: new TerminalRenderer({
+    reflowText: true,
+    width: 80,
+  }),
 })
 
 const openaiApi = new openai.OpenAIApi(
@@ -53,6 +56,17 @@ async function handleSentence(prompt: string) {
   ).text.trim()
 
   console.log(marked(`**Translation: \`${translation}\`**`))
+
+  // Say it out loud by using the 'say' command on macOS
+  void (async () => {
+    await Deno.run({
+      cmd: ["say", "-v", "Nora", "-r", "85", translation],
+    }).status()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await Deno.run({
+      cmd: ["say", "-v", "Nora", "-r", "150", translation],
+    }).status()
+  })()
 
   // Ask ChatGPT to explain word by word
   const openaiResponse = await openaiApi
@@ -101,6 +115,16 @@ async function handleSentence(prompt: string) {
               ...,
               "notes": [
                 "'I det siste' = 'lately' or 'recently'"
+              ]
+            }
+
+            If a word is a compound word, like "utgangspunktet", give translations for each part in notes. For example, if your sentence is "Bryllup er i utgangspunktet begravelser med kake.", add the following note to the JSON object:
+
+            {
+              ...,
+              "notes": [
+                ...,
+                "'utgangspunktet' = 'utgangs' + 'punktet' = 'starting point'"
               ]
             }
             
