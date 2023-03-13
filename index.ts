@@ -108,7 +108,7 @@ async function handleSentence(prompt: string) {
             The rules are:
 
               - Use the format specified below.
-              - For simple words like "du", "en", "er", "og", etc., you can just provide the word itself and its translations.
+              - For simple words like "du", "en", "er", "og", you can just provide the word itself and its translations.
 
             For instance, if your sentence is "Hvor ble du født?", your explanation should be the following JSON object. Do not output any other text.
 
@@ -119,7 +119,7 @@ async function handleSentence(prompt: string) {
                 {"word": "du", "english": "you", "russian": "ты"},
                 {"word": "født", "english": "born", "russian": "родился", "example": "Jeg ble født i Oslo", "translation": "I was born in Oslo"}
               ]
-            ]
+            }
 
             For very common compound words, you can provide a single row for a combination of words. For instance, if your sentence is "Jeg vil ha kjøtt i stedet for fisk.", your output should be as follows:
 
