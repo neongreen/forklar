@@ -9,6 +9,7 @@ import {
   bold,
   italic,
 } from "https://deno.land/std@0.178.0/fmt/colors.ts"
+import dirtyJson from "npm:dirty-json"
 
 // Load env vars
 import "https://deno.land/std@0.179.0/dotenv/load.ts"
@@ -17,7 +18,7 @@ import "https://deno.land/std@0.179.0/dotenv/load.ts"
 marked.setOptions({
   renderer: new TerminalRenderer({
     reflowText: true,
-    width: 100,
+    width: Deno.consoleSize().columns - 10,
   }),
 })
 
@@ -152,7 +153,7 @@ async function handleSentence(prompt: string) {
               ]
             }
             
-            Feel free to add other useful notes, since I'm a beginner in Norwegian.
+            Add other useful notes about grammar, context, or culture, since I'm a beginner in Norwegian. But don't provide translations for words that are already translated in your explanation.
 
             ${
               translation !== prompt
@@ -171,18 +172,21 @@ async function handleSentence(prompt: string) {
     })
 
   if (openaiResponse) {
-    const result = JSON.parse(openaiResponse.data.choices[0].message?.content!)
+    const result = dirtyJson.parse(
+      openaiResponse.data.choices[0].message?.content!
+    )
     const table = new Table({
       head: ["Word", "Translation", "Example"],
     })
-    for (const word of result.explanation) {
+    for (const row of result.explanation) {
+      if ([",", ".", "!", "?"].includes(row.word.trim())) continue
       table.push([
-        bold(yellow(word.word)),
-        `${italic("English:")} ${word.english}` +
+        bold(yellow(row.word)),
+        `${italic("English:")} ${row.english}` +
           "\n" +
-          `${italic("Russian:")} ${word.russian}`,
-        ...(word.example
-          ? [yellow(word.example) + "\n" + italic(word.translation)]
+          `${italic("Russian:")} ${row.russian}`,
+        ...(row.example
+          ? [yellow(row.example) + "\n" + italic(row.translation)]
           : []),
       ])
     }
@@ -197,12 +201,11 @@ async function handleSentence(prompt: string) {
   }
 }
 
-// On each line of stdin, call handleSentence
 while (true) {
   const line = prompt(">")
   if (!line) continue
   console.log("")
-  if (line.startsWith("/")) {
+  if (line.startsWith("!")) {
     await handleCommand(line.slice(1))
   } else if (line.startsWith("?")) {
     await handleExplainWord(line.slice(1))
